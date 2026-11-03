@@ -59,7 +59,23 @@ CLIENT_URL=http://localhost:3000
 
 ---
 
-## 💻 Getting Started
+## ☁️ Deployment Instructions
+
+### Option 1: Render.com
+1. Create a new Web Service on [Render](https://render.com).
+2. Connect your `booknook-server` GitHub repository.
+3. Build command: `npm install`
+4. Start command: `node index.js`
+5. Add Environment Variables:
+   - `MONGODB_URI`: Your MongoDB Atlas connection URI
+   - `ACCESS_TOKEN_SECRET`: A secure random string for JWT signing
+   - `CLIENT_URL`: Your deployed frontend URL (e.g. `https://booknook.vercel.app`)
+
+### Option 2: Vercel
+1. Import repository to [Vercel](https://vercel.com).
+2. Set Environment Variables (`MONGODB_URI`, `ACCESS_TOKEN_SECRET`, `CLIENT_URL`).
+3. Deploy! The included `vercel.json` configures the serverless bridge automatically.
+
 
 1. **Install dependencies**:
    ```bash
