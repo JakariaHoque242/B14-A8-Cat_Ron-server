@@ -444,8 +444,73 @@ async function run() {
 
 run().catch(console.dir);
 
-// Root route
+// Root route - Branded API dashboard for browser visits and JSON for API requests
 app.get('/', (req, res) => {
+  if (req.headers.accept && req.headers.accept.includes('text/html')) {
+    res.setHeader('Content-Type', 'text/html');
+    return res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BookNook API Server | Online</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          body { font-family: 'Inter', sans-serif; }
+          .font-serif { font-family: 'Merriweather', serif; }
+        </style>
+      </head>
+      <body class="bg-stone-900 text-stone-100 min-h-screen flex items-center justify-center p-6">
+        <div class="max-w-xl w-full bg-stone-800/90 border border-stone-700 rounded-3xl p-8 sm:p-10 shadow-2xl space-y-6">
+          <div class="flex items-center space-x-3">
+            <div class="w-12 h-12 rounded-2xl bg-amber-600 flex items-center justify-center text-white text-2xl shadow-lg">
+              📚
+            </div>
+            <div>
+              <h1 class="text-2xl font-serif font-black text-white">Book<span class="text-amber-500">Nook</span> API Server</h1>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                ● Server Online & Operational
+              </span>
+            </div>
+          </div>
+
+          <div class="bg-stone-900/80 p-5 rounded-2xl border border-stone-700/60 space-y-3">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-stone-400">Notice for Examiner & Users:</h2>
+            <p class="text-sm text-stone-300 leading-relaxed">
+              This is the <strong>Backend REST API</strong>. To experience the full interactive library with book catalog, login, borrow system, and themes, visit the <strong>Frontend Client Application</strong>.
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-stone-400">Available API Endpoints:</h3>
+            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-emerald-400">GET /books</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-emerald-400">GET /books/:id</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-amber-400">POST /books (JWT)</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-amber-400">PATCH /books/:id</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-red-400">DELETE /books/:id</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-cyan-400">POST /borrows (JWT)</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-cyan-400">GET /borrows (JWT)</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-red-400">DELETE /borrows/:id</div>
+            </div>
+          </div>
+
+          <div class="pt-2 flex flex-col sm:flex-row gap-3">
+            <a href="/books" class="w-full sm:w-1/2 py-3 px-4 rounded-xl bg-stone-700 hover:bg-stone-600 text-center text-xs font-bold transition">
+              Test JSON: GET /books
+            </a>
+            <a href="https://github.com/JakariaHoque242/B14-A8-Cat_Ron-client" target="_blank" class="w-full sm:w-1/2 py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-center text-xs font-bold transition shadow-lg">
+              Open Client Repository →
+            </a>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+
   res.send({
     message: '📚 BookNook Server API is active and running!',
     status: 'online',
