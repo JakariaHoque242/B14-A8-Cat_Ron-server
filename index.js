@@ -9,7 +9,6 @@ const app = express();
 const port = process.env.PORT || 5000;
 const JWT_SECRET = process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET || 'booknook_jwt_super_secret_key_2026';
 
-// Middleware
 app.use(cors({
   origin: '*',
   credentials: true,
@@ -20,15 +19,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('dev'));
 
-// MongoDB Client
 const uri = process.env.MONGODB_URI || "mongodb+srv://booknookUser:BookNook2026Pass@cluster0.mongodb.net/?retryWrites=true&w=majority";
 let client = null;
 let db = null;
 let booksCollection = null;
 let borrowsCollection = null;
-let usersCollection = null;
 
-// Initial curated book data for fallback and auto-seeding
 const initialBooks = [
   {
     _id: "65b1a001a1b2c3d4e5f60001",
@@ -104,12 +100,9 @@ const initialBooks = [
   }
 ];
 
-// In-memory collections fallback
 let inMemoryBooks = [...initialBooks];
 let inMemoryBorrows = [];
-let inMemoryUsers = [];
 
-// Lazy DB connector
 async function connectToMongo() {
   if (db) return true;
   try {
@@ -127,9 +120,7 @@ async function connectToMongo() {
     db = client.db('booknookDB');
     booksCollection = db.collection('books');
     borrowsCollection = db.collection('borrows');
-    usersCollection = db.collection('users');
 
-    // Auto-seed if empty
     const count = await booksCollection.countDocuments();
     if (count === 0) {
       const seedData = initialBooks.map(({ _id, ...rest }) => ({
@@ -140,15 +131,12 @@ async function connectToMongo() {
     }
     return true;
   } catch (err) {
-    console.warn('MongoDB connection notice (using resilient fallback):', err.message);
     return false;
   }
 }
 
-// Initial connection attempt
 connectToMongo();
 
-// JWT Verification Middleware
 const verifyJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -165,13 +153,10 @@ const verifyJWT = (req, res, next) => {
   });
 };
 
-// ----------------------------------------------------
-// AUTH / JWT ROUTE
-// ----------------------------------------------------
 app.post('/jwt', (req, res) => {
   const user = req.body;
   if (!user || (!user.email && !user.id)) {
-    return res.status(400).send({ error: true, message: 'Invalid payload for token generation' });
+    return res.status(400).send({ error: true, message: 'Invalid payload' });
   }
   const token = jwt.sign(
     { email: user.email, name: user.name, id: user.id || user._id },
@@ -181,9 +166,6 @@ app.post('/jwt', (req, res) => {
   res.send({ success: true, token });
 });
 
-// ----------------------------------------------------
-// 1. GET /books — get all books (public)
-// ----------------------------------------------------
 app.get('/books', async (req, res) => {
   try {
     const { limit, sort, category, search } = req.query;
@@ -212,7 +194,7 @@ app.get('/books', async (req, res) => {
       }
 
       if (limit) {
-        const limitNum = parseInt(limit);
+        const limitNum = parseInt(limit, 10);
         if (!isNaN(limitNum) && limitNum > 0) {
           cursor = cursor.limit(limitNum);
         }
@@ -222,7 +204,6 @@ app.get('/books', async (req, res) => {
       return res.send(books);
     }
 
-    // Fallback: in-memory books
     let results = [...inMemoryBooks];
     if (category && category !== 'All') {
       results = results.filter(b => b.category?.toLowerCase() === category.toLowerCase());
@@ -239,21 +220,17 @@ app.get('/books', async (req, res) => {
       results.reverse();
     }
     if (limit) {
-      const num = parseInt(limit);
+      const num = parseInt(limit, 10);
       if (!isNaN(num) && num > 0) {
         results = results.slice(0, num);
       }
     }
     return res.send(results);
   } catch (error) {
-    console.error('Error fetching books:', error);
     res.status(500).send({ error: true, message: 'Failed to fetch books' });
   }
 });
 
-// ----------------------------------------------------
-// 2. GET /books/:id — get one book (public)
-// ----------------------------------------------------
 app.get('/books/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -264,20 +241,15 @@ app.get('/books/:id', async (req, res) => {
       if (book) return res.send(book);
     }
 
-    // Fallback in memory
     const book = inMemoryBooks.find(b => String(b._id) === String(id));
     if (book) return res.send(book);
 
     return res.status(404).send({ error: true, message: 'Book not found' });
   } catch (error) {
-    console.error('Error fetching book details:', error);
-    res.status(500).send({ error: true, message: 'Failed to fetch book details' });
+    res.status(500).send({ error: true, message: 'Failed to fetch book' });
   }
 });
 
-// ----------------------------------------------------
-// 3. POST /books — add a book (protected with JWT)
-// ----------------------------------------------------
 app.post('/books', verifyJWT, async (req, res) => {
   try {
     const {
@@ -303,7 +275,7 @@ app.post('/books', verifyJWT, async (req, res) => {
       image: image.trim(),
       copies: isNaN(copiesCount) || copiesCount < 0 ? 1 : copiesCount,
       description: description.trim(),
-      userName: userName || req.user.name || 'Anonymous Reader',
+      userName: userName || req.user.name || 'Reader',
       userEmail: userEmail || req.user.email,
       createdAt: new Date()
     };
@@ -319,7 +291,6 @@ app.post('/books', verifyJWT, async (req, res) => {
       });
     }
 
-    // In-memory
     const inMemId = `mem_${Date.now()}`;
     const saved = { ...newBook, _id: inMemId };
     inMemoryBooks.unshift(saved);
@@ -330,14 +301,10 @@ app.post('/books', verifyJWT, async (req, res) => {
       book: saved
     });
   } catch (error) {
-    console.error('Error adding book:', error);
     res.status(500).send({ error: true, message: 'Failed to add book' });
   }
 });
 
-// ----------------------------------------------------
-// 4. PATCH /books/:id — update a book (protected with JWT)
-// ----------------------------------------------------
 app.patch('/books/:id', verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -360,7 +327,7 @@ app.patch('/books/:id', verifyJWT, async (req, res) => {
     if (isConnected && booksCollection && ObjectId.isValid(id)) {
       const existingBook = await booksCollection.findOne({ _id: new ObjectId(id) });
       if (existingBook && existingBook.userEmail && req.user.email && existingBook.userEmail !== req.user.email) {
-        return res.status(403).send({ error: true, message: 'Forbidden: You can only update your own books' });
+        return res.status(403).send({ error: true, message: 'Forbidden access' });
       }
 
       await booksCollection.updateOne({ _id: new ObjectId(id) }, { $set: updateData });
@@ -368,7 +335,6 @@ app.patch('/books/:id', verifyJWT, async (req, res) => {
       return res.send({ success: true, message: 'Book updated successfully!', book: updated });
     }
 
-    // Fallback
     const idx = inMemoryBooks.findIndex(b => String(b._id) === String(id));
     if (idx !== -1) {
       inMemoryBooks[idx] = { ...inMemoryBooks[idx], ...updateData };
@@ -377,14 +343,10 @@ app.patch('/books/:id', verifyJWT, async (req, res) => {
 
     return res.status(404).send({ error: true, message: 'Book not found' });
   } catch (error) {
-    console.error('Error updating book:', error);
     res.status(500).send({ error: true, message: 'Failed to update book' });
   }
 });
 
-// ----------------------------------------------------
-// 5. DELETE /books/:id — delete a book (protected with JWT)
-// ----------------------------------------------------
 app.delete('/books/:id', verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -393,24 +355,19 @@ app.delete('/books/:id', verifyJWT, async (req, res) => {
     if (isConnected && booksCollection && ObjectId.isValid(id)) {
       const existingBook = await booksCollection.findOne({ _id: new ObjectId(id) });
       if (existingBook && existingBook.userEmail && req.user.email && existingBook.userEmail !== req.user.email) {
-        return res.status(403).send({ error: true, message: 'Forbidden: You can only delete your own books' });
+        return res.status(403).send({ error: true, message: 'Forbidden access' });
       }
       const result = await booksCollection.deleteOne({ _id: new ObjectId(id) });
       return res.send({ success: true, message: 'Book deleted successfully!', deletedCount: result.deletedCount });
     }
 
-    // Fallback
     inMemoryBooks = inMemoryBooks.filter(b => String(b._id) !== String(id));
     return res.send({ success: true, message: 'Book deleted successfully!', deletedCount: 1 });
   } catch (error) {
-    console.error('Error deleting book:', error);
     res.status(500).send({ error: true, message: 'Failed to delete book' });
   }
 });
 
-// ----------------------------------------------------
-// 6. POST /borrows — borrow a book (protected with JWT)
-// ----------------------------------------------------
 app.post('/borrows', verifyJWT, async (req, res) => {
   try {
     const { bookId, bookTitle, bookImage, userEmail, userName, returnDate } = req.body;
@@ -430,7 +387,7 @@ app.post('/borrows', verifyJWT, async (req, res) => {
       if (!book) return res.status(404).send({ error: true, message: 'Book not found.' });
 
       if (book.copies === undefined || book.copies <= 0) {
-        return res.status(400).send({ error: true, message: 'Sorry! No copies available right now for this book.' });
+        return res.status(400).send({ error: true, message: 'No copies available right now for this book.' });
       }
 
       const existingBorrow = await borrowsCollection.findOne({
@@ -463,16 +420,15 @@ app.post('/borrows', verifyJWT, async (req, res) => {
 
       return res.status(201).send({
         success: true,
-        message: 'Book borrowed successfully! Enjoy reading.',
+        message: 'Book borrowed successfully!',
         borrowId: borrowResult.insertedId,
         borrow: { ...newBorrow, _id: borrowResult.insertedId }
       });
     }
 
-    // In-memory fallback
     const memBook = inMemoryBooks.find(b => String(b._id) === String(bookId));
     if (!memBook) return res.status(404).send({ error: true, message: 'Book not found.' });
-    if ((memBook.copies || 0) <= 0) return res.status(400).send({ error: true, message: 'Sorry! No copies available.' });
+    if ((memBook.copies || 0) <= 0) return res.status(400).send({ error: true, message: 'No copies available.' });
 
     const alreadyBorrowed = inMemoryBorrows.find(b => String(b.bookId) === String(bookId) && b.userEmail === borrowerEmail && b.status === 'borrowed');
     if (alreadyBorrowed) {
@@ -496,19 +452,15 @@ app.post('/borrows', verifyJWT, async (req, res) => {
 
     return res.status(201).send({
       success: true,
-      message: 'Book borrowed successfully! Enjoy reading.',
+      message: 'Book borrowed successfully!',
       borrowId: memBorrow._id,
       borrow: memBorrow
     });
   } catch (error) {
-    console.error('Error borrowing book:', error);
     res.status(500).send({ error: true, message: 'Failed to borrow book' });
   }
 });
 
-// ----------------------------------------------------
-// 7. GET /borrows — get borrows of the logged in user (protected with JWT)
-// ----------------------------------------------------
 app.get('/borrows', verifyJWT, async (req, res) => {
   try {
     const email = req.query.email || req.user.email;
@@ -522,18 +474,13 @@ app.get('/borrows', verifyJWT, async (req, res) => {
       return res.send(borrows);
     }
 
-    // Fallback
     const userBorrows = inMemoryBorrows.filter(b => b.userEmail?.toLowerCase() === email.toLowerCase());
     return res.send(userBorrows);
   } catch (error) {
-    console.error('Error fetching borrows:', error);
     res.status(500).send({ error: true, message: 'Failed to fetch borrow records' });
   }
 });
 
-// ----------------------------------------------------
-// 8. DELETE /borrows/:id — return a book (protected with JWT)
-// ----------------------------------------------------
 app.delete('/borrows/:id', verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
@@ -550,7 +497,6 @@ app.delete('/borrows/:id', verifyJWT, async (req, res) => {
       }
     }
 
-    // In-memory fallback
     const idx = inMemoryBorrows.findIndex(b => String(b._id) === String(id));
     if (idx !== -1) {
       const memBorrow = inMemoryBorrows[idx];
@@ -562,12 +508,10 @@ app.delete('/borrows/:id', verifyJWT, async (req, res) => {
 
     return res.status(404).send({ error: true, message: 'Borrow record not found' });
   } catch (error) {
-    console.error('Error returning book:', error);
     res.status(500).send({ error: true, message: 'Failed to return book' });
   }
 });
 
-// Root route - Branded API dashboard for browser visits and JSON for API requests
 app.get('/', (req, res) => {
   if (req.headers.accept && req.headers.accept.includes('text/html')) {
     res.setHeader('Content-Type', 'text/html');
@@ -592,30 +536,29 @@ app.get('/', (req, res) => {
               📚
             </div>
             <div>
-              <h1 class="text-2xl font-serif font-black text-white">Book<span class="text-amber-500">Nook</span> API Server</h1>
+              <h1 class="text-2xl font-serif font-black text-white">Book<span class="text-amber-500">Nook</span> API</h1>
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
-                ● Server Online & Operational
+                ● REST API Operational
               </span>
             </div>
           </div>
 
-          <div class="bg-stone-900/80 p-5 rounded-2xl border border-stone-700/60 space-y-3">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-stone-400">Notice for Examiner & Users:</h2>
+          <div class="bg-stone-900/80 p-5 rounded-2xl border border-stone-700/60 space-y-2">
             <p class="text-sm text-stone-300 leading-relaxed">
-              This is the <strong>Backend REST API</strong>. All 8 routes and JWT endpoints are live and responsive.
+              BookNook backend services are running. Connect to the frontend client to explore the full library application.
             </p>
           </div>
 
           <div class="space-y-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-stone-400">Available API Endpoints:</h3>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-stone-400">Available Endpoints:</h3>
             <div class="grid grid-cols-2 gap-2 text-xs font-mono">
               <a href="/books" class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-emerald-400 hover:border-emerald-500">GET /books</a>
               <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-emerald-400">GET /books/:id</div>
-              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-amber-400">POST /books (JWT)</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-amber-400">POST /books</div>
               <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-amber-400">PATCH /books/:id</div>
               <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-red-400">DELETE /books/:id</div>
-              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-cyan-400">POST /borrows (JWT)</div>
-              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-cyan-400">GET /borrows (JWT)</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-cyan-400">POST /borrows</div>
+              <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-cyan-400">GET /borrows</div>
               <div class="p-2 rounded-xl bg-stone-900 border border-stone-800 text-red-400">DELETE /borrows/:id</div>
             </div>
           </div>
@@ -625,7 +568,7 @@ app.get('/', (req, res) => {
               Test JSON: GET /books
             </a>
             <a href="https://github.com/JakariaHoque242/B14-A8-Cat_Ron-client" target="_blank" class="w-full sm:w-1/2 py-3 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-center text-xs font-bold transition shadow-lg">
-              Open Client Repository →
+              Client Repository →
             </a>
           </div>
         </div>
@@ -635,7 +578,7 @@ app.get('/', (req, res) => {
   }
 
   res.send({
-    message: '📚 BookNook Server API is active and running!',
+    message: 'BookNook Server API is active and running',
     status: 'online',
     version: '1.0.0',
     endpoints: [
@@ -653,7 +596,7 @@ app.get('/', (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`🚀 BookNook server is running smoothly on port ${port}`);
+  console.log(`Server running on port ${port}`);
 });
 
 module.exports = app;
