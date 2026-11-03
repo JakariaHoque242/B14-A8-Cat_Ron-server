@@ -1,5 +1,8 @@
 # 📚 BookNook Server – REST API & JWT Engine
 
+**Server Repository**: [https://github.com/JakariaHoque242/B14-A8-Cat_Ron-server](https://github.com/JakariaHoque242/B14-A8-Cat_Ron-server)  
+**Client Repository**: [https://github.com/JakariaHoque242/B14-A8-Cat_Ron-client](https://github.com/JakariaHoque242/B14-A8-Cat_Ron-client)  
+
 BookNook is a small online library platform backend built with Express.js and MongoDB. It powers user authentication, catalog management, book lending with real-time stock deduction, and user borrow history with JWT verification.
 
 ---
